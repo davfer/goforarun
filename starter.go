@@ -100,7 +100,9 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 		l.Debug("starting app")
 		err := s.app.Run(tracedCtx)
 		l.WithError(err).Debug("finishing app")
-		errCh <- err
+		if err != nil || len(s.servers) == 0 {
+			errCh <- err
+		}
 	}()
 
 	for {
