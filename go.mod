@@ -1,4 +1,4 @@
-module goforarun
+module github.com/davfer/goforarun
 
 go 1.20
 

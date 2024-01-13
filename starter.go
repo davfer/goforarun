@@ -89,8 +89,9 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 		go func(server RunnableServer) {
 			l.WithField("server", server.Info().Name).Debug("starting unmanaged server")
 			err := server.Run(tracedCtx)
-			l.WithError(err).Debug("finishing server")
-			errCh <- err
+			if err != nil {
+				errCh <- err
+			}
 		}(s.servers[i])
 	}
 	// TODO: add condition to wait for all servers to be listening
@@ -137,7 +138,7 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 
 			os.Exit(125)
 		case err := <-errCh:
-			if errors.Is(err, ErrGracefulShutdown) {
+			if errors.Is(err, ErrGracefulShutdown) || err == nil {
 				l.Info("graceful shutdown")
 				span.End()
 
