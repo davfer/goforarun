@@ -1,0 +1,27 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	app "github.com/davfer/goforarun"
+)
+
+type {{ .ServiceName }} struct {
+	cfg {{ .ServiceConfigType }}
+}
+
+func (a {{ .ServiceType }}) Init(cfg {{ .ServiceConfigType }}) ([]app.RunnableServer, error) {
+	a.cfg = cfg
+
+	return []app.RunnableServer{}, nil
+}
+
+func (a {{ .ServiceType }}) Run(ctx context.Context) error {
+	fmt.Printf("Hello, %s!\n", a.cfg.Framework().ServiceName)
+
+	return nil
+}
+
+func (a {{ .ServiceType }}) Shutdown(ctx context.Context) error {
+	return nil
+}

@@ -1,0 +1,12 @@
+package main
+    
+import app "github.com/davfer/goforarun"
+
+type {{ .ServiceConfigName }} struct {
+  FrameworkConfig *app.BaseAppConfig `yaml:"framework"`
+  // Add your config here
+}
+
+func (c {{ .ServiceConfigType }}) Framework() *app.BaseAppConfig {
+  return c.FrameworkConfig
+}
