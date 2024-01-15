@@ -76,6 +76,8 @@ func main() {
 	os.WriteFile(fmt.Sprintf("%s/config.go", projectName), renderTemplate(configFile, data), 0644)
 	os.WriteFile(fmt.Sprintf("%s/service.go", projectName), renderTemplate(serviceFile, data), 0644)
 	os.WriteFile(fmt.Sprintf("%s/config.yaml", projectName), renderTemplate(configYamlFile, data), 0644)
+
+	fmt.Println("Done! Happy coding!")
 }
 
 func renderTemplate(tmp []byte, data TemplateData) []byte {
