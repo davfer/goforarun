@@ -2,32 +2,22 @@ package observability
 
 import (
 	"context"
-	"fmt"
 	"github.com/davfer/goforarun/config"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/uptrace/opentelemetry-go-extra/otellogrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
-	"go.opentelemetry.io/otel/trace"
-	"io"
 	"os"
 )
 
 var serviceName string
-var traceProvider *sdkTrace.TracerProvider
-
 var observabilityMode string
 var fileResource *os.File
 
-var baseLogger = *logrus.New()
-var baseFields = logrus.Fields{}
-
-// INITIALIZERS
 func SetObservabilityConfig(c *config.BaseAppConfig) error {
 	serviceName = c.ServiceName
 	observabilityMode = c.ObservabilityMode
@@ -42,12 +32,7 @@ func SetObservabilityConfig(c *config.BaseAppConfig) error {
 		fields["date"] = c.BuildInfo.Date
 	}
 
-	err := setLoggerConfig(
-		c.LoggingLevel,
-		os.Stdout,
-		c.LoggingFormat,
-		fields,
-	)
+	err := InitLogger(c.LoggingConfig, fields)
 	if err != nil {
 		return errors.Wrap(err, "couldn't set logger config")
 	}
@@ -94,14 +79,13 @@ func SetObservabilityConfig(c *config.BaseAppConfig) error {
 	// set trace provider
 	otel.SetTracerProvider(traceProvider)
 
-	// logger hooks
-	baseLogger.AddHook(getLogrusHook())
+	// logger hooks TODO
+	logger.baseLogger.AddHook(getLogrusHook())
 
 	return nil
 }
 func CloseObservability(ctx context.Context) error {
 	if observabilityMode == "disabled" {
-		baseLogger.Info("observability disabled, skipping close")
 		return nil
 	}
 	if err := traceProvider.Shutdown(ctx); err != nil {
@@ -115,34 +99,6 @@ func CloseObservability(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func NewTracer(name string) trace.Tracer {
-	if name == "" {
-		return otel.Tracer(fmt.Sprintf("has/%s", serviceName))
-	}
-
-	return otel.Tracer(fmt.Sprintf("has/%s/%s", serviceName, name))
-}
-func NewLogger(channel string) *logrus.Entry {
-	return baseLogger.WithFields(baseFields).WithField("channel", channel)
-}
-
-func NilLogger() *logrus.Entry {
-	nilLogger := *logrus.New()
-	nilLogger.SetOutput(io.Discard)
-
-	return nilLogger.WithFields(baseFields)
-}
-
-type ObservableStruct struct {
-	Tracer trace.Tracer
-	Logger *logrus.Entry
-}
-
-func (o *ObservableStruct) InitObservableStruct(name string) {
-	o.Tracer = NewTracer(name)
-	o.Logger = NewLogger(name)
 }
 
 func getResource(tags []attribute.KeyValue) *resource.Resource {
@@ -160,60 +116,4 @@ func getResource(tags []attribute.KeyValue) *resource.Resource {
 		),
 	)
 	return r
-}
-
-func getLogrusHook() logrus.Hook {
-	return otellogrus.NewHook(
-		otellogrus.WithLevels(
-			logrus.PanicLevel,
-			logrus.FatalLevel,
-			logrus.ErrorLevel,
-			logrus.WarnLevel,
-			logrus.InfoLevel,
-		),
-	)
-}
-
-func setLoggerConfig(levelName string, out io.Writer, formatterName string, fields map[string]interface{}) error {
-	var level logrus.Level
-	switch levelName {
-	case "debug":
-		level = logrus.DebugLevel
-		break
-	case "info":
-		level = logrus.InfoLevel
-		break
-	case "warn":
-		level = logrus.WarnLevel
-		break
-	case "error":
-		level = logrus.ErrorLevel
-		break
-	case "fatal":
-		level = logrus.FatalLevel
-		break
-	case "panic":
-		level = logrus.PanicLevel
-		break
-	default:
-		return errors.New(fmt.Sprintf("invalid log level: %s", levelName))
-	}
-	baseLogger.SetLevel(level)
-	baseLogger.SetOutput(out)
-
-	var formatter logrus.Formatter
-	switch formatterName {
-	case "text":
-		formatter = new(logrus.TextFormatter)
-		break
-	case "json":
-		formatter = new(logrus.JSONFormatter)
-		break
-	default:
-		return errors.New("invalid log formatter")
-	}
-	baseLogger.SetFormatter(formatter)
-	baseFields = fields
-
-	return nil
 }

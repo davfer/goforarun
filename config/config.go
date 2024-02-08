@@ -11,12 +11,10 @@ import (
 type BaseAppConfig struct {
 	// ServiceName is the identifier of the service
 	ServiceName string `yaml:"service_name"`
-	// LoggingLevel is the level of the logger
-	LoggingLevel string `yaml:"log_level"`
-	// LoggingFormat is the format of the logger (logrus)
-	LoggingFormat string `yaml:"log_format"`
 	// ObservabilityMode is the mode of the observability, currently only traces (otpl, file, stdout, disabled)
 	ObservabilityMode string `yaml:"observability_mode"`
+	// LoggingConfig is the configuration of the logs
+	LoggingConfig LoggingConfig `yaml:"logs"`
 	// BuildInfo is the information of the build. Useful to identify running process for observability.
 	BuildInfo *BuildInfo
 }
