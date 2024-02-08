@@ -2,20 +2,22 @@ package main
 
 import (
 	"context"
-	app "github.com/davfer/goforarun"
+	"github.com/davfer/goforarun"
+	gofarhttp "github.com/davfer/goforarun/http"
+	"github.com/davfer/goforarun/observability"
 	"net/http"
 )
 
 type HttpService struct {
-	app.ObservableStruct
+	observability.ObservableStruct
 	cfg *HttpServiceConfig
 }
 
-func (e *HttpService) Init(cfg *HttpServiceConfig) ([]app.RunnableServer, error) {
+func (e *HttpService) Init(cfg *HttpServiceConfig) ([]goforarun.RunnableServer, error) {
 	e.InitObservableStruct("my-server-service")
 	e.cfg = cfg
 
-	server := app.NewHttpBaseServer(&app.InfoServer{
+	server := gofarhttp.NewHttpBaseServer(&goforarun.InfoServer{
 		Net:  "tcp",
 		Host: "",
 		Port: "8081",
@@ -25,7 +27,7 @@ func (e *HttpService) Init(cfg *HttpServiceConfig) ([]app.RunnableServer, error)
 		w.Write([]byte("Hello, world!\n"))
 	})
 
-	return []app.RunnableServer{server}, nil
+	return []goforarun.RunnableServer{server}, nil
 }
 
 func (e *HttpService) Run(ctx context.Context) error {

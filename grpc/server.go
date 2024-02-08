@@ -1,7 +1,9 @@
-package app
+package grpc
 
 import (
 	"context"
+	"github.com/davfer/goforarun"
+	"github.com/davfer/goforarun/observability"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
@@ -13,8 +15,8 @@ import (
 	"net"
 )
 
-type GrpcBaseServer struct {
-	info       *InfoServer
+type BaseServer struct {
+	info       *goforarun.InfoServer
 	grpcServer *grpc.Server
 	logger     *logrus.Entry
 	registrars []ServiceRegisterFunc
@@ -22,15 +24,15 @@ type GrpcBaseServer struct {
 
 type ServiceRegisterFunc func(s *grpc.Server)
 
-func NewGrpcBaseServer(info *InfoServer, registrars []ServiceRegisterFunc) RunnableServer {
-	return &GrpcBaseServer{
+func NewGrpcBaseServer(info *goforarun.InfoServer, registrars []ServiceRegisterFunc) goforarun.RunnableServer {
+	return &BaseServer{
 		info:       info,
 		registrars: registrars,
-		logger:     NewLogger("grpc-server").WithField("name", info.Name),
+		logger:     observability.NewLogger("grpc-server").WithField("name", info.Name),
 	}
 }
 
-func (cs *GrpcBaseServer) Run(ctx context.Context) error {
+func (cs *BaseServer) Run(ctx context.Context) error {
 	cs.grpcServer = grpc.NewServer(
 		grpc.UnaryInterceptor(
 			grpc_middleware.ChainUnaryServer(
@@ -68,7 +70,7 @@ func (cs *GrpcBaseServer) Run(ctx context.Context) error {
 	return cs.grpcServer.Serve(listen)
 }
 
-func (cs *GrpcBaseServer) Shutdown(ctx context.Context) error {
+func (cs *BaseServer) Shutdown(ctx context.Context) error {
 	cs.logger.Debug("shutting down grpc server")
 	cs.grpcServer.GracefulStop()
 	cs.logger.Info("grpc server stopped")
@@ -76,6 +78,6 @@ func (cs *GrpcBaseServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (cs *GrpcBaseServer) Info() *InfoServer {
+func (cs *BaseServer) Info() *goforarun.InfoServer {
 	return cs.info
 }

@@ -1,4 +1,4 @@
-package app
+package config
 
 import (
 	"github.com/pkg/errors"
@@ -37,6 +37,7 @@ type BuildInfo struct {
 	Date    string
 }
 
+// NewConfig creates a new configuration from a file path
 func NewConfig[K any](configPath string) (K, error) {
 	var config K
 

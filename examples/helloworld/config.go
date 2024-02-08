@@ -1,11 +1,13 @@
 package main
 
-import app "github.com/davfer/goforarun"
+import (
+	"github.com/davfer/goforarun/config"
+)
 
 type ExampleConfig struct {
-	FrameworkConfig *app.BaseAppConfig `yaml:"framework"`
+	FrameworkConfig *config.BaseAppConfig `yaml:"framework"`
 }
 
-func (c *ExampleConfig) Framework() *app.BaseAppConfig {
+func (c *ExampleConfig) Framework() *config.BaseAppConfig {
 	return c.FrameworkConfig
 }

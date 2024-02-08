@@ -1,8 +1,9 @@
-package app
+package observability
 
 import (
 	"context"
 	"fmt"
+	"github.com/davfer/goforarun/config"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/uptrace/opentelemetry-go-extra/otellogrus"
@@ -27,7 +28,7 @@ var baseLogger = *logrus.New()
 var baseFields = logrus.Fields{}
 
 // INITIALIZERS
-func SetObservabilityConfig(c *BaseAppConfig) error {
+func SetObservabilityConfig(c *config.BaseAppConfig) error {
 	serviceName = c.ServiceName
 	observabilityMode = c.ObservabilityMode
 
@@ -125,6 +126,13 @@ func NewTracer(name string) trace.Tracer {
 }
 func NewLogger(channel string) *logrus.Entry {
 	return baseLogger.WithFields(baseFields).WithField("channel", channel)
+}
+
+func NilLogger() *logrus.Entry {
+	nilLogger := *logrus.New()
+	nilLogger.SetOutput(io.Discard)
+
+	return nilLogger.WithFields(baseFields)
 }
 
 type ObservableStruct struct {
