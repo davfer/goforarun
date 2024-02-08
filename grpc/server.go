@@ -10,7 +10,6 @@ import (
 	grpc_validator "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"net"
 )
@@ -39,7 +38,7 @@ func (cs *BaseServer) Run(ctx context.Context) error {
 				grpc_logrus.UnaryServerInterceptor(cs.logger.WithField("type", "interceptor")),
 				grpc_validator.UnaryServerInterceptor(),
 				grpc_recovery.UnaryServerInterceptor(),
-				otelgrpc.UnaryServerInterceptor(),
+				//otelgrpc.UnaryServerInterceptor(),
 			),
 		),
 		grpc.StreamInterceptor(
@@ -47,7 +46,7 @@ func (cs *BaseServer) Run(ctx context.Context) error {
 				grpc_logrus.StreamServerInterceptor(cs.logger.WithField("type", "interceptor")),
 				grpc_validator.StreamServerInterceptor(),
 				grpc_recovery.StreamServerInterceptor(),
-				otelgrpc.StreamServerInterceptor(),
+				//otelgrpc.StreamServerInterceptor(),
 			),
 		),
 	)
