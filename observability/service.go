@@ -84,16 +84,16 @@ func StartObservability(ctx context.Context, opts ...Customizer) error {
 	}
 
 	// LOG PARTY
-	logExporter, err := otlploggrpc.New(ctx)
-	if err != nil {
-		return err
-	}
-
-	provider := log.NewLoggerProvider(log.WithProcessor(log.NewBatchProcessor(logExporter)), log.WithResource(res))
-	global.SetLoggerProvider(provider)
-
 	var slogHandler slog.Handler
 	if val, ok := os.LookupEnv("OTEL_SDK_DISABLED"); !ok || val != "true" {
+		logExporter, err := otlploggrpc.New(ctx)
+		if err != nil {
+			return err
+		}
+
+		provider := log.NewLoggerProvider(log.WithProcessor(log.NewBatchProcessor(logExporter)), log.WithResource(res))
+		global.SetLoggerProvider(provider)
+
 		slogHandler = otelslog.NewHandler(c.serviceName, otelslog.WithLoggerProvider(global.GetLoggerProvider()))
 	}
 	if c.loggerStdout {
@@ -121,24 +121,27 @@ func StartObservability(ctx context.Context, opts ...Customizer) error {
 	slog.SetDefault(slog.New(slogHandler))
 
 	// TRACE PARTY
-	traceExporter, err := otlptracegrpc.New(ctx)
-	if err != nil {
-		return err
-	}
+	if val, ok := os.LookupEnv("OTEL_SDK_DISABLED"); !ok || val != "true" {
+		traceExporter, err := otlptracegrpc.New(ctx)
+		if err != nil {
+			return err
+		}
 
-	bsp := trace.NewBatchSpanProcessor(traceExporter)
-	tracerProvider := trace.NewTracerProvider(trace.WithSampler(trace.AlwaysSample()), trace.WithResource(res), trace.WithSpanProcessor(bsp))
-	otel.SetTracerProvider(tracerProvider)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+		bsp := trace.NewBatchSpanProcessor(traceExporter)
+		tracerProvider := trace.NewTracerProvider(trace.WithSampler(trace.AlwaysSample()), trace.WithResource(res), trace.WithSpanProcessor(bsp))
+		otel.SetTracerProvider(tracerProvider)
+		otel.SetTextMapPropagator(propagation.TraceContext{})
+	}
 
 	// METER PARTY
-	metricExporter, err := otlpmetricgrpc.New(ctx)
-	if err != nil {
-		return err
+	if val, ok := os.LookupEnv("OTEL_SDK_DISABLED"); !ok || val != "true" {
+		metricExporter, err := otlpmetricgrpc.New(ctx)
+		if err != nil {
+			return err
+		}
+		meterProvider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(metricExporter)), metric.WithResource(res))
+		otel.SetMeterProvider(meterProvider)
 	}
-	meterProvider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(metricExporter)), metric.WithResource(res))
-	otel.SetMeterProvider(meterProvider)
-
 	return nil
 }
 
