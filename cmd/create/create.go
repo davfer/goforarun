@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/pkg/errors"
+	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -69,15 +70,25 @@ func main() {
 		ServiceConfigName:  fmt.Sprintf("%sConfig", pascalProjectName),
 	}
 
-	fmt.Sprintf("Creating project %s...", projectName)
-	os.Mkdir(projectName, 0755)
+	fmt.Printf("Creating project %s...", projectName)
+	err := os.Mkdir(projectName, 0755)
+	if err != nil {
+		log.Fatal(fmt.Errorf("error creating folder ./%s: %v", projectName, err))
+	}
 
-	os.WriteFile(fmt.Sprintf("%s/main.go", projectName), renderTemplate(mainFile, data), 0644)
-	os.WriteFile(fmt.Sprintf("%s/config.go", projectName), renderTemplate(configFile, data), 0644)
-	os.WriteFile(fmt.Sprintf("%s/service.go", projectName), renderTemplate(serviceFile, data), 0644)
-	os.WriteFile(fmt.Sprintf("%s/config.yaml", projectName), renderTemplate(configYamlFile, data), 0644)
+	writeOrFail(projectName, "main.go", mainFile, data)
+	writeOrFail(projectName, "config.go", configFile, data)
+	writeOrFail(projectName, "service.go", serviceFile, data)
+	writeOrFail(projectName, "config.yaml", configYamlFile, data)
 
 	fmt.Println("Done! Happy coding!")
+}
+
+func writeOrFail(projectName, fileName string, file []byte, data TemplateData) {
+	err := os.WriteFile(fmt.Sprintf("%s/%s", projectName, fileName), renderTemplate(file, data), 0644)
+	if err != nil {
+		log.Fatal(fmt.Errorf("could not write %s: %w", fileName, err))
+	}
 }
 
 func renderTemplate(tmp []byte, data TemplateData) []byte {

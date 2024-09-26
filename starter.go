@@ -167,31 +167,26 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 
 			os.Exit(125)
 		case err := <-errCh:
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			span.End()
+
 			if errors.Is(err, ErrGracefulShutdown) || err == nil {
 				s.logger.Info("graceful shutdown")
-				span.End()
 
 				os.Exit(0)
 
 				return
 			}
 
-			if _, ok := err.(error); ok {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-			}
-			span.End()
+			s.logger.Error("service crashed", logger.AttrErr(err))
 
+			err = observability.StopObservability(context.Background())
 			if err != nil {
-				s.logger.Error("service crashed", logger.AttrErr(err))
-
-				err = observability.StopObservability(context.Background())
-				if err != nil {
-					s.logger.Error("error while closing observability", logger.AttrErr(err))
-				}
-
-				os.Exit(1)
+				s.logger.Error("error while closing observability", logger.AttrErr(err))
 			}
+
+			os.Exit(1)
 		}
 	}
 }
