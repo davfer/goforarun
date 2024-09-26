@@ -14,7 +14,7 @@ Simple package to help bootstrapping projects.
 
 Run to create a project:
 ```
-$ go run github.com/davfer/goforarun/cmd/create@0.0.4 <project_name>
+$ go run github.com/davfer/goforarun/cmd/create@v0.0.6 <project_name>
 $ cd <project_name>
 $ go mod init <project_name>
 $ go get github.com/davfer/goforarun

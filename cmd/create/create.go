@@ -70,7 +70,7 @@ func main() {
 		ServiceConfigName:  fmt.Sprintf("%sConfig", pascalProjectName),
 	}
 
-	fmt.Printf("Creating project %s...", projectName)
+	fmt.Printf("Creating project %s...\n", projectName)
 	err := os.Mkdir(projectName, 0755)
 	if err != nil {
 		log.Fatal(fmt.Errorf("error creating folder ./%s: %v", projectName, err))

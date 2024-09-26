@@ -166,8 +166,10 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 
 			os.Exit(125)
 		case err := <-errCh:
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
 			span.End()
 
 			if errors.Is(err, ErrGracefulShutdown) || err == nil {
