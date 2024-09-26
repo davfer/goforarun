@@ -2,15 +2,17 @@ package grpc
 
 import (
 	"context"
-	"github.com/davfer/goforarun"
-	"github.com/davfer/goforarun/logger"
+	"log/slog"
+	"net"
+
 	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	grpcvalidator "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
-	"log/slog"
-	"net"
+
+	"github.com/davfer/goforarun"
+	"github.com/davfer/goforarun/logger"
 )
 
 type BaseServer struct {

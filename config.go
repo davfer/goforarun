@@ -1,4 +1,4 @@
-package config
+package goforarun
 
 import (
 	"fmt"

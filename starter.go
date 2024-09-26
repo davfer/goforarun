@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/davfer/goforarun/config"
 	"github.com/davfer/goforarun/logger"
 	"github.com/davfer/goforarun/observability"
 	"go.opentelemetry.io/otel"
@@ -21,7 +20,7 @@ const AppLoggerName = "gofar"
 var ErrGracefulShutdown = errors.New("graceful shutdown")
 
 type Config interface {
-	Framework() *config.BaseAppConfig
+	Framework() *BaseAppConfig
 }
 
 type App[V any] interface {
@@ -43,13 +42,13 @@ type BaseService[V any] struct {
 
 // NewService creates a new service with the given app and config.
 // This is the main and only entry point for the GoForARun framework.
-func NewService[K App[V], V Config](app K, buildInfo *config.BuildInfo) (*Service[K, V], error) {
+func NewService[K App[V], V Config](app K, buildInfo *BuildInfo) (*Service[K, V], error) {
 	// config
 	var configFile string
 	flag.StringVar(&configFile, "config", "config.yaml", "config file path")
 	flag.Parse()
 
-	cfg, err := config.NewConfig[V](configFile)
+	cfg, err := NewConfig[V](configFile)
 	if err != nil {
 		return nil, fmt.Errorf("could not start without config: %w", err)
 	}

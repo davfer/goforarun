@@ -1,4 +1,4 @@
-package config
+package goforarun
 
 type LoggingConfig struct {
 	// Level is the log level (debug, info, warn, error, fatal, panic)

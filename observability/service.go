@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/davfer/goforarun/logger"
 	"log/slog"
 	"os"
 
@@ -22,6 +21,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+
+	"github.com/davfer/goforarun/logger"
 )
 
 type Cfg struct {

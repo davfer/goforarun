@@ -2,10 +2,11 @@ package http
 
 import (
 	"context"
-	"github.com/davfer/goforarun"
-	"github.com/davfer/goforarun/logger"
 	"log/slog"
 	"net/http"
+
+	"github.com/davfer/goforarun"
+	"github.com/davfer/goforarun/logger"
 )
 
 type BaseServer struct {

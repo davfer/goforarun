@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"github.com/davfer/goforarun"
-	gofarhttp "github.com/davfer/goforarun/http"
-	"github.com/davfer/goforarun/logger"
 	"log/slog"
 	"net/http"
+
+	app "github.com/davfer/goforarun"
+	gofarhttp "github.com/davfer/goforarun/http"
+	"github.com/davfer/goforarun/logger"
 )
 
 type HttpService struct {
@@ -14,11 +15,11 @@ type HttpService struct {
 	logger *slog.Logger
 }
 
-func (e *HttpService) Init(cfg *HttpServiceConfig) ([]goforarun.RunnableServer, error) {
+func (e *HttpService) Init(cfg *HttpServiceConfig) ([]app.RunnableServer, error) {
 	e.cfg = cfg
 	e.logger = logger.Get("http-server")
 
-	server := gofarhttp.NewHttpBaseServer(&goforarun.InfoServer{
+	server := gofarhttp.NewHttpBaseServer(&app.InfoServer{
 		Net:  "tcp",
 		Host: "",
 		Port: "8090",
@@ -28,7 +29,7 @@ func (e *HttpService) Init(cfg *HttpServiceConfig) ([]goforarun.RunnableServer, 
 		w.Write([]byte("Hello, world!\n"))
 	})
 
-	return []goforarun.RunnableServer{server}, nil
+	return []app.RunnableServer{server}, nil
 }
 
 func (e *HttpService) Run(ctx context.Context) error {
