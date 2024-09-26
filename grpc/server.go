@@ -5,9 +5,6 @@ import (
 	"log/slog"
 	"net"
 
-	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	grpcvalidator "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -34,22 +31,23 @@ func NewGrpcBaseServer(info *goforarun.InfoServer, registrars []ServiceRegisterF
 
 func (cs *BaseServer) Run(ctx context.Context) error {
 	cs.grpcServer = grpc.NewServer(
-		grpc.UnaryInterceptor(
-			grpcmiddleware.ChainUnaryServer(
-				//grpclogrus.UnaryServerInterceptor(cs.logger.With("type", "interceptor")),
-				grpcvalidator.UnaryServerInterceptor(),
-				grpcrecovery.UnaryServerInterceptor(),
-				//otelgrpc.UnaryServerInterceptor(),
-			),
-		),
-		grpc.StreamInterceptor(
-			grpcmiddleware.ChainStreamServer(
-				//grpclogrus.StreamServerInterceptor(cs.logger.WithField("type", "interceptor")),
-				grpcvalidator.StreamServerInterceptor(),
-				grpcrecovery.StreamServerInterceptor(),
-				//otelgrpc.StreamServerInterceptor(),
-			),
-		),
+	// TODO v2 https://github.com/grpc-ecosystem/go-grpc-middleware
+	//grpc.UnaryInterceptor(
+	//	grpcmiddleware(
+	//		//grpclogrus.UnaryServerInterceptor(cs.logger.With("type", "interceptor")),
+	//		grpcvalidator.UnaryServerInterceptor(),
+	//		grpcrecovery.UnaryServerInterceptor(),
+	//		//otelgrpc.UnaryServerInterceptor(),
+	//	),
+	//),
+	//grpc.StreamInterceptor(
+	//	grpcmiddleware.ChainStreamServer(
+	//		//grpclogrus.StreamServerInterceptor(cs.logger.WithField("type", "interceptor")),
+	//		grpcvalidator.StreamServerInterceptor(),
+	//		grpcrecovery.StreamServerInterceptor(),
+	//		//otelgrpc.StreamServerInterceptor(),
+	//	),
+	//),
 	)
 
 	// server part
