@@ -1,9 +1,10 @@
 package config
 
 import (
-	"github.com/pkg/errors"
-	"gopkg.in/yaml.v3"
+	"fmt"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 // BaseAppConfig is the base configuration for the service, it needs a name, a log level, a log format,
@@ -11,8 +12,6 @@ import (
 type BaseAppConfig struct {
 	// ServiceName is the identifier of the service
 	ServiceName string `yaml:"service_name"`
-	// ObservabilityMode is the mode of the observability, currently only traces (otpl, file, stdout, disabled)
-	ObservabilityMode string `yaml:"observability_mode"`
 	// LoggingConfig is the configuration of the logs
 	LoggingConfig LoggingConfig `yaml:"logs"`
 	// BuildInfo is the information of the build. Useful to identify running process for observability.
@@ -41,13 +40,13 @@ func NewConfig[K any](configPath string) (K, error) {
 
 	file, err := os.Open(configPath)
 	if err != nil {
-		return config, errors.Wrap(err, "failed to open config file")
+		return config, fmt.Errorf("failed to open config file: %w", err)
 	}
 	defer file.Close()
 
 	decoder := yaml.NewDecoder(file)
 	if err = decoder.Decode(&config); err != nil {
-		return config, errors.Wrap(err, "failed to decode config file")
+		return config, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
 	return config, nil

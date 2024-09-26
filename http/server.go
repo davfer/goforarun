@@ -3,29 +3,29 @@ package http
 import (
 	"context"
 	"github.com/davfer/goforarun"
-	"github.com/davfer/goforarun/observability"
-	"github.com/sirupsen/logrus"
+	"github.com/davfer/goforarun/logger"
+	"log/slog"
 	"net/http"
 )
 
 type BaseServer struct {
 	info       *goforarun.InfoServer
 	httpServer *http.Server
-	logger     *logrus.Entry
+	logger     *slog.Logger
 	handler    http.HandlerFunc
 }
 
 func NewHttpBaseServer(info *goforarun.InfoServer, handler http.HandlerFunc) goforarun.RunnableServer {
 	return &BaseServer{
 		info:       info,
-		logger:     observability.NewLogger("http-server").WithField("name", info.Name),
+		logger:     logger.Get("http-server", slog.String("name", info.Name)),
 		httpServer: nil,
 		handler:    handler,
 	}
 }
 
 func (cs *BaseServer) Run(ctx context.Context) error {
-	cs.logger.WithField("connection", cs.info).Info("listening server")
+	cs.logger.With("connection", cs.info).Info("listening server")
 	cs.httpServer = &http.Server{
 		Addr:    cs.info.Host + ":" + cs.info.Port,
 		Handler: cs.handler,

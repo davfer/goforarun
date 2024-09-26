@@ -2,20 +2,21 @@ package goforarun
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"github.com/davfer/goforarun/config"
+	"github.com/davfer/goforarun/logger"
 	"github.com/davfer/goforarun/observability"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"log/slog"
 	"os"
 	"os/signal"
 	"time"
 )
 
-const (
-	AppLoggerName = "gfar"
-)
+const AppLoggerName = "gofar"
 
 var ErrGracefulShutdown = errors.New("graceful shutdown")
 
@@ -33,7 +34,7 @@ type Service[K App[V], V Config] struct {
 	BaseService[V]
 	app     K
 	servers []RunnableServer
-	logger  *logrus.Entry
+	logger  *slog.Logger
 }
 
 type BaseService[V any] struct {
@@ -50,25 +51,47 @@ func NewService[K App[V], V Config](app K, buildInfo *config.BuildInfo) (*Servic
 
 	cfg, err := config.NewConfig[V](configFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "couldn't start without config")
+		return nil, fmt.Errorf("could not start without config: %w", err)
 	}
 
 	cfg.Framework().BuildInfo = buildInfo
 
 	// observability
-	err = observability.SetObservabilityConfig(cfg.Framework())
-	if err != nil {
-		return nil, errors.Wrap(err, "couldn't set observability config")
+	var opts []observability.Customizer
+	if cfg.Framework().ServiceName != "" {
+		opts = append(opts, observability.WithServiceName(cfg.Framework().ServiceName))
 	}
-	l := observability.NewLogger(AppLoggerName)
+	if buildInfo.Version != "" {
+		opts = append(opts, observability.WithServiceVersion(buildInfo.Version))
+	}
+	if cfg.Framework().LoggingConfig.Level != "" {
+		var l slog.Leveler
+		l, err = observability.ParseLevel(cfg.Framework().LoggingConfig.Level)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, observability.WithLoggerLevel(l))
+	}
+	if len(cfg.Framework().LoggingConfig.FilteredChannels) > 0 {
+		opts = append(opts, observability.WithLoggerChannels(cfg.Framework().LoggingConfig.FilteredChannels))
+	}
+	if val, ok := os.LookupEnv("DEBUG"); ok && val == "true" {
+		opts = append(opts, observability.WithLoggerStdout(true))
+	}
+
+	err = observability.StartObservability(context.Background(), opts...)
+	if err != nil {
+		return nil, fmt.Errorf("could not start observability: %w", err)
+	}
+	l := logger.Get(AppLoggerName)
 
 	/////////////////////
 	// INIT USER APP
-	l.WithField("build", buildInfo).Debug("initializing app")
+	l.With("build", buildInfo).Debug("initializing app")
 	servers, err := app.Init(cfg)
 	if err != nil {
-		l.WithError(err).Fatal("couldn't initialize app")
-		return nil, errors.Wrap(err, "couldn't initialize app")
+		l.Error("could not initialize app", logger.AttrErr(err))
+		return nil, fmt.Errorf("could not initialize app: %w", err)
 	}
 	/////////////////////
 
@@ -83,7 +106,7 @@ func NewService[K App[V], V Config](app K, buildInfo *config.BuildInfo) (*Servic
 // Run starts the service and blocks until it receives a SIGINT or the app crashes.
 // If the app Run method returns an error, the service will log it and exit.
 func (s *Service[K, V]) Run(ctx context.Context) {
-	tracedCtx, span := observability.NewTracer(AppLoggerName).Start(ctx, "run")
+	tracedCtx, span := otel.Tracer(AppLoggerName).Start(ctx, "run")
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt)
@@ -91,7 +114,7 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 	errCh := make(chan error)
 	for i := range s.servers {
 		go func(server RunnableServer) {
-			s.logger.WithField("server", server.Info().Name).Debug("starting unmanaged server")
+			s.logger.With("server", server.Info().Name).Debug("starting unmanaged server")
 			err := server.Run(tracedCtx)
 			if err != nil {
 				errCh <- err
@@ -103,7 +126,7 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 	go func() {
 		s.logger.Debug("starting app")
 		err := s.app.Run(tracedCtx)
-		s.logger.WithError(err).Debug("finishing app")
+		s.logger.Debug("app ran successfully", logger.AttrErr(err))
 		if err != nil || len(s.servers) == 0 {
 			errCh <- err
 		}
@@ -117,10 +140,10 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 			ctxShutdown, cancel := context.WithTimeout(tracedCtx, 10*time.Second)
 
 			for _, server := range s.servers {
-				s.logger.WithField("server", server.Info().Name).Debug("shutting down unmanaged server")
+				s.logger.With("server", server.Info().Name).Debug("shutting down unmanaged server")
 				err := server.Shutdown(ctxShutdown)
 				if err != nil {
-					s.logger.WithField("server", server.Info().Name).WithError(err).Error("error while shutting down unmanaged server")
+					s.logger.With("server", server.Info().Name).Error("error while shutting down unmanaged server", logger.AttrErr(err))
 				}
 			}
 
@@ -129,14 +152,14 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
-				s.logger.WithError(err).Error("error while shutting down business app")
+				s.logger.Error("error while shutting down business app", logger.AttrErr(err))
 			}
 			span.End()
 
 			s.logger.Debug("shutting down observability")
-			err = observability.CloseObservability(ctxShutdown)
+			err = observability.StopObservability(ctxShutdown)
 			if err != nil {
-				s.logger.WithError(err).Error("error while closing observability")
+				s.logger.Error("error while closing observability", logger.AttrErr(err))
 			}
 
 			cancel()
@@ -160,14 +183,14 @@ func (s *Service[K, V]) Run(ctx context.Context) {
 			span.End()
 
 			if err != nil {
-				s.logger.WithError(err).Error("service crashed")
+				s.logger.Error("service crashed", logger.AttrErr(err))
 
-				err = observability.CloseObservability(context.Background())
+				err = observability.StopObservability(context.Background())
 				if err != nil {
-					s.logger.WithError(err).Error("error while closing observability")
+					s.logger.Error("error while closing observability", logger.AttrErr(err))
 				}
 
-				s.logger.Fatal(err)
+				os.Exit(1)
 			}
 		}
 	}

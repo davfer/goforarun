@@ -2,118 +2,185 @@ package observability
 
 import (
 	"context"
-	"github.com/davfer/goforarun/config"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"errors"
+	"fmt"
+	"github.com/davfer/goforarun/logger"
+	"log/slog"
+	"os"
+
+	slogmulti "github.com/samber/slog-multi"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
-	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
-	"os"
+	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
-var serviceName string
-var observabilityMode string
-var fileResource *os.File
+type Cfg struct {
+	loggerLevel    slog.Leveler
+	loggerChannels map[string]string
+	loggerStdout   bool
+	serviceVersion string
+	serviceName    string
+}
 
-func SetObservabilityConfig(c *config.BaseAppConfig) error {
-	serviceName = c.ServiceName
-	observabilityMode = c.ObservabilityMode
+type Customizer func(*Cfg)
+
+func WithServiceVersion(version string) Customizer {
+	return func(c *Cfg) {
+		c.serviceVersion = version
+	}
+}
+func WithLoggerChannels(channels map[string]string) Customizer {
+	return func(c *Cfg) {
+		c.loggerChannels = channels
+	}
+}
+func WithLoggerLevel(level slog.Leveler) Customizer {
+	return func(c *Cfg) {
+		c.loggerLevel = level
+	}
+}
+func WithServiceName(serviceName string) Customizer {
+	return func(c *Cfg) {
+		c.serviceName = serviceName
+	}
+}
+func WithLoggerStdout(stdout bool) Customizer {
+	return func(c *Cfg) {
+		c.loggerStdout = stdout
+	}
+}
+
+func StartObservability(ctx context.Context, opts ...Customizer) error {
+	c := Cfg{}
+	for _, opt := range opts {
+		opt(&c)
+	}
+
+	var attrs []attribute.KeyValue
+	if hostName, err := os.Hostname(); err == nil {
+		attrs = append(attrs, semconv.HostName(hostName))
+	}
+	if c.serviceName != "" {
+		attrs = append(attrs, semconv.ServiceNameKey.String(c.serviceName))
+	}
+	if c.serviceVersion != "" {
+		attrs = append(attrs, semconv.ServiceVersionKey.String(c.serviceVersion))
+	}
+
+	res, err := resource.New(ctx, resource.WithSchemaURL(semconv.SchemaURL), resource.WithTelemetrySDK(), resource.WithAttributes(attrs...))
+	if err != nil {
+		return err
+	}
 
 	// LOG PARTY
-	fields := logrus.Fields{
-		"service": serviceName,
-	}
-	if c.BuildInfo != nil {
-		fields["version"] = c.BuildInfo.Version
-		fields["commit"] = c.BuildInfo.Commit
-		fields["date"] = c.BuildInfo.Date
+	logExporter, err := otlploggrpc.New(ctx)
+	if err != nil {
+		return err
 	}
 
-	err := InitLogger(c.LoggingConfig, fields)
-	if err != nil {
-		return errors.Wrap(err, "couldn't set logger config")
+	provider := log.NewLoggerProvider(log.WithProcessor(log.NewBatchProcessor(logExporter)), log.WithResource(res))
+	global.SetLoggerProvider(provider)
+
+	var slogHandler slog.Handler
+	if val, ok := os.LookupEnv("OTEL_SDK_DISABLED"); !ok || val != "true" {
+		slogHandler = otelslog.NewHandler(c.serviceName, otelslog.WithLoggerProvider(global.GetLoggerProvider()))
 	}
+	if c.loggerStdout {
+		l := (slog.Leveler)(slog.LevelDebug)
+		if c.loggerLevel.Level() >= 0 {
+			l = c.loggerLevel
+		}
+		textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: l})
+		if slogHandler != nil {
+			slogHandler = slogmulti.Fanout(slogHandler, textHandler)
+		} else {
+			slogHandler = textHandler
+		}
+	}
+	if len(c.loggerChannels) > 0 {
+		var m map[string]slog.Leveler
+		m, err = mapToLeveler(c.loggerChannels)
+		if err != nil {
+			return err
+		}
+
+		slogHandler = logger.NewChanneledHandler(slogHandler, m)
+	}
+
+	slog.SetDefault(slog.New(slogHandler))
 
 	// TRACE PARTY
-	var exp sdkTrace.SpanExporter
-	var res *resource.Resource
-
-	// exp selection
-	if c.ObservabilityMode == "otpl" {
-		// TODO
-	} else if c.ObservabilityMode == "file" || c.ObservabilityMode == "stdout" {
-		if c.ObservabilityMode == "file" {
-			fileResource, err = os.Create("traces.txt")
-			if err != nil {
-				return errors.Wrap(err, "failed to create trace file")
-			}
-		} else {
-			fileResource = os.Stdout
-		}
-
-		exp, err = stdouttrace.New(
-			stdouttrace.WithWriter(fileResource),
-			stdouttrace.WithPrettyPrint(),
-			stdouttrace.WithoutTimestamps(),
-		)
-
-		if err != nil {
-			return errors.Wrap(err, "failed to create stdout trace exporter")
-		}
-	} else {
-		observabilityMode = "disabled"
-		return nil
+	traceExporter, err := otlptracegrpc.New(ctx)
+	if err != nil {
+		return err
 	}
 
-	// res decoration
-	res = getResource(nil)
+	bsp := trace.NewBatchSpanProcessor(traceExporter)
+	tracerProvider := trace.NewTracerProvider(trace.WithSampler(trace.AlwaysSample()), trace.WithResource(res), trace.WithSpanProcessor(bsp))
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	traceProvider = sdkTrace.NewTracerProvider(
-		sdkTrace.WithBatcher(exp),
-		sdkTrace.WithResource(res),
-	)
-
-	// set trace provider
-	otel.SetTracerProvider(traceProvider)
-
-	// logger hooks TODO
-	logger.baseLogger.AddHook(getLogrusHook())
-
-	return nil
-}
-func CloseObservability(ctx context.Context) error {
-	if observabilityMode == "disabled" {
-		return nil
+	// METER PARTY
+	metricExporter, err := otlpmetricgrpc.New(ctx)
+	if err != nil {
+		return err
 	}
-	if err := traceProvider.Shutdown(ctx); err != nil {
-		return errors.Wrap(err, "failed to shutdown trace provider")
-	}
-	if observabilityMode == "file" {
-		err := fileResource.Close()
-		if err != nil {
-			return errors.Wrap(err, "failed to close trace file")
-		}
-	}
+	meterProvider := metric.NewMeterProvider(metric.WithReader(metric.NewPeriodicReader(metricExporter)), metric.WithResource(res))
+	otel.SetMeterProvider(meterProvider)
 
 	return nil
 }
 
-func getResource(tags []attribute.KeyValue) *resource.Resource {
-	attrs := []attribute.KeyValue{
-		semconv.ServiceNameKey.String(serviceName),
-		semconv.ServiceVersionKey.String("v0.0.1"),
+func StopObservability(ctx context.Context) (err error) {
+	if t, ok := otel.GetTracerProvider().(*trace.TracerProvider); ok {
+		err = errors.Join(t.Shutdown(ctx))
 	}
-	attrs = append(attrs, tags...)
+	if m, ok := otel.GetMeterProvider().(*metric.MeterProvider); ok {
+		err = errors.Join(m.Shutdown(ctx))
+	}
+	if l, ok := global.GetLoggerProvider().(*log.LoggerProvider); ok {
+		err = errors.Join(l.Shutdown(ctx))
+	}
 
-	r, _ := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
-			attrs...,
-		),
-	)
-	return r
+	return
+}
+
+func mapToLeveler(m map[string]string) (res map[string]slog.Leveler, err error) {
+	res = make(map[string]slog.Leveler, len(m))
+	var l slog.Leveler
+	for k, v := range m {
+		l, err = ParseLevel(v)
+		if err != nil {
+			return
+		}
+
+		res[k] = l
+	}
+	return
+}
+
+func ParseLevel(s string) (l slog.Leveler, err error) {
+	switch s {
+	case "debug":
+		l = slog.LevelDebug
+	case "info":
+		l = slog.LevelInfo
+	case "warn":
+		l = slog.LevelWarn
+	case "error":
+		l = slog.LevelError
+	default:
+		err = fmt.Errorf("level %s not supported", s)
+	}
+	return
 }

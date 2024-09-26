@@ -1,7 +1,4 @@
 framework:
   service_name: hello-world
-  observability_mode: none
   logs:
     level: debug
-    format: text
-    output: stdout

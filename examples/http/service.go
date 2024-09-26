@@ -4,26 +4,27 @@ import (
 	"context"
 	"github.com/davfer/goforarun"
 	gofarhttp "github.com/davfer/goforarun/http"
-	"github.com/davfer/goforarun/observability"
+	"github.com/davfer/goforarun/logger"
+	"log/slog"
 	"net/http"
 )
 
 type HttpService struct {
-	observability.ObservableStruct
-	cfg *HttpServiceConfig
+	cfg    *HttpServiceConfig
+	logger *slog.Logger
 }
 
 func (e *HttpService) Init(cfg *HttpServiceConfig) ([]goforarun.RunnableServer, error) {
-	e.InitObservableStruct("my-server-service")
 	e.cfg = cfg
+	e.logger = logger.Get("http-server")
 
 	server := gofarhttp.NewHttpBaseServer(&goforarun.InfoServer{
 		Net:  "tcp",
 		Host: "",
-		Port: "8081",
+		Port: "8090",
 		Name: "server",
 	}, func(w http.ResponseWriter, r *http.Request) {
-		e.Logger.WithField("method", r.Method).Info("Request received")
+		e.logger.Info("request received", slog.String("method", r.Method))
 		w.Write([]byte("Hello, world!\n"))
 	})
 
@@ -31,7 +32,7 @@ func (e *HttpService) Init(cfg *HttpServiceConfig) ([]goforarun.RunnableServer, 
 }
 
 func (e *HttpService) Run(ctx context.Context) error {
-	e.Logger.Debug("Running http service")
+	e.logger.Debug("running http service") // this will not be shown in stdout
 
 	// Init consumers, etc.
 

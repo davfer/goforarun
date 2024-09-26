@@ -1,9 +1,6 @@
 framework:
   service_name: http-server
-  observability_mode: none
   logs:
     level: debug
-    format: text
-    output: stdout
     filtered_channels:
-      http-server: warn
+      http-server: info

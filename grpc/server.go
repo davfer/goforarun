@@ -3,21 +3,20 @@ package grpc
 import (
 	"context"
 	"github.com/davfer/goforarun"
-	"github.com/davfer/goforarun/observability"
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	grpc_validator "github.com/grpc-ecosystem/go-grpc-middleware/validator"
+	"github.com/davfer/goforarun/logger"
+	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+	grpcvalidator "github.com/grpc-ecosystem/go-grpc-middleware/validator"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"log/slog"
 	"net"
 )
 
 type BaseServer struct {
 	info       *goforarun.InfoServer
 	grpcServer *grpc.Server
-	logger     *logrus.Entry
+	logger     *slog.Logger
 	registrars []ServiceRegisterFunc
 }
 
@@ -27,32 +26,32 @@ func NewGrpcBaseServer(info *goforarun.InfoServer, registrars []ServiceRegisterF
 	return &BaseServer{
 		info:       info,
 		registrars: registrars,
-		logger:     observability.NewLogger("grpc-server").WithField("name", info.Name),
+		logger:     logger.Get("grpc-server", slog.String("name", info.Name)),
 	}
 }
 
 func (cs *BaseServer) Run(ctx context.Context) error {
 	cs.grpcServer = grpc.NewServer(
 		grpc.UnaryInterceptor(
-			grpc_middleware.ChainUnaryServer(
-				grpc_logrus.UnaryServerInterceptor(cs.logger.WithField("type", "interceptor")),
-				grpc_validator.UnaryServerInterceptor(),
-				grpc_recovery.UnaryServerInterceptor(),
+			grpcmiddleware.ChainUnaryServer(
+				//grpclogrus.UnaryServerInterceptor(cs.logger.With("type", "interceptor")),
+				grpcvalidator.UnaryServerInterceptor(),
+				grpcrecovery.UnaryServerInterceptor(),
 				//otelgrpc.UnaryServerInterceptor(),
 			),
 		),
 		grpc.StreamInterceptor(
-			grpc_middleware.ChainStreamServer(
-				grpc_logrus.StreamServerInterceptor(cs.logger.WithField("type", "interceptor")),
-				grpc_validator.StreamServerInterceptor(),
-				grpc_recovery.StreamServerInterceptor(),
+			grpcmiddleware.ChainStreamServer(
+				//grpclogrus.StreamServerInterceptor(cs.logger.WithField("type", "interceptor")),
+				grpcvalidator.StreamServerInterceptor(),
+				grpcrecovery.StreamServerInterceptor(),
 				//otelgrpc.StreamServerInterceptor(),
 			),
 		),
 	)
 
 	// server part
-	cs.logger.WithField("connection", cs.info).Info("listening server")
+	cs.logger.With("connection", cs.info).Info("listening server")
 	listen, err := net.Listen(cs.info.Net, cs.info.Host+":"+cs.info.Port)
 	if err != nil {
 		return errors.Wrap(err, "error listening server")

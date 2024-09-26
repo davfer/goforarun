@@ -1,5 +1,4 @@
 framework:
   service_name: {{ .Name }}
-  log_level: debug
-  log_format: text
-  observability_mode: none
+  logs:
+    level: debug

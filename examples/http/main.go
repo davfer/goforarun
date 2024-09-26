@@ -4,6 +4,7 @@ import (
 	"context"
 	app "github.com/davfer/goforarun"
 	"github.com/davfer/goforarun/config"
+	"os"
 )
 
 var (
@@ -13,6 +14,8 @@ var (
 )
 
 func main() {
+	os.Setenv("DEBUG", "true")
+
 	build := &config.BuildInfo{Version: version, Commit: commit, Date: date}
 	if svc, err := app.NewService[*HttpService, *HttpServiceConfig](&HttpService{}, build); err != nil {
 		panic(err)

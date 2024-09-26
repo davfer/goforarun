@@ -7,7 +7,7 @@ Simple package to help bootstrapping projects.
 - Run a service easily, just need to have an Init(), Run(), and Shutdown() methods.
 - Configuration via config.yaml file to configure your service.
 - Build info with version, commit, and date. (GoReleaser friendly)
-- Observability with OpenTelemetry and, meanwhile is not implemented in the previous, logs via logrus.
+- Observability with OpenTelemetry.
 - Provided with HTTP and GRPC servers. (see [/examples](/examples))
 
 ## Getting started
